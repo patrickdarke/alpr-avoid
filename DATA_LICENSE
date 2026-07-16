@@ -1,0 +1,17 @@
+Data license
+============
+
+The software in this repository is MIT-licensed (see LICENSE). The CAMERA DATA
+is not — it is a different license, because it comes from OpenStreetMap.
+
+  data/cameras.bin  (and the regenerable data/cameras.geojson)
+
+is a derivative of OpenStreetMap data:
+
+  © OpenStreetMap contributors, licensed under the
+  Open Database License (ODbL) v1.0 — https://opendatacommons.org/licenses/odbl/
+
+Under ODbL you may use, share, and adapt this data, provided you (1) attribute
+OpenStreetMap, and (2) keep any adapted database under ODbL (share-alike). If you
+build on or redistribute the camera data, those terms apply to it — the MIT
+license covers only the code.

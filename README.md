@@ -130,3 +130,10 @@ are always avoided.
 Done: live nationwide camera data, corridor→on-route classification,
 **directional avoidance** with facing-arrow visualization and a UI toggle,
 address geocoding, and OSM/ODbL attribution.
+
+## License
+
+- **Code** — MIT ([LICENSE](LICENSE)).
+- **Camera data** (`data/cameras.bin` / `data/cameras.geojson`) — © OpenStreetMap
+  contributors, under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
+  Attribution + share-alike apply if you redistribute or adapt it. See [DATA_LICENSE](DATA_LICENSE).
