@@ -306,5 +306,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8787"))
-    print(f"ALPR-avoidance app on http://127.0.0.1:{port}")
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    host = os.environ.get("HOST", "127.0.0.1")  # container sets HOST=0.0.0.0
+    print(f"ALPR-avoidance app on http://{host}:{port}")
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

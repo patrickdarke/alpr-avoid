@@ -51,6 +51,20 @@ python3 app.py                    # -> open http://127.0.0.1:8787
 
 Type a start and destination, toggle directional avoidance, and hit Route.
 
+## Run with Docker (GitHub Packages)
+
+A prebuilt container image is published to the GitHub Container Registry:
+
+```bash
+docker run --rm -p 8787:8787 ghcr.io/patrickdarke/alpr-avoid:latest
+# then open http://localhost:8787
+```
+
+The image is built and pushed automatically by
+[.github/workflows/publish-package.yml](.github/workflows/publish-package.yml).
+It still calls the external Valhalla/Nominatim services for routing and
+geocoding, so it needs internet access.
+
 ## Efficiency notes
 
 The app loads a **packed binary** (`cameras.bin`: float32 lon/lat + int16 heading),
