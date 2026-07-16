@@ -40,11 +40,11 @@ Avoiding public cameras like these is legal — this is a privacy tool.
 
 ## Step 1 — Download the files
 
-1. Go to the project page: **https://github.com/patrickdarke/alpr-avoid**
-2. Click the green **"Code"** button near the top.
-3. Click **"Download ZIP."**
-4. Find the downloaded ZIP file (usually in your *Downloads* folder) and
-   **double-click it** to unzip. You'll get a folder called `alpr-avoid-main`.
+1. Go to the downloads page: **https://github.com/patrickdarke/alpr-avoid/releases/latest**
+2. Under **"Assets,"** click **`alpr-avoid-v0.1.0.zip`** to download it. (This is
+   a ready-to-run package — it already includes everything you need.)
+3. Find the downloaded ZIP file (usually in your *Downloads* folder) and
+   **double-click it** to unzip. You'll get a folder called `alpr-avoid-v0.1.0`.
 
 ---
 
@@ -63,7 +63,7 @@ A window with a blinking cursor opens. That's it.
 ## Step 3 — Go to the folder and start it
 
 In that window, type the word `cd` (which means "change to this folder"),
-then a space, then drag the unzipped `alpr-avoid-main` folder onto the window
+then a space, then drag the unzipped `alpr-avoid-v0.1.0` folder onto the window
 and drop it. It will fill in the folder location for you. Press `Enter`.
 
 Now type this and press `Enter`:
