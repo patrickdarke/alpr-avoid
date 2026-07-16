@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALPR-Avoidance Prototype</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --bg:#101418; --panel:#1a2027; --ink:#e7edf3; --muted:#9aa7b4; --accent:#e6194B; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  #map { position:absolute; inset:0; }
+  #panel { position:absolute; z-index:1000; top:12px; left:12px; width:290px;
+    background:var(--panel); border:1px solid #2a333d; border-radius:12px; padding:14px 16px;
+    box-shadow:0 8px 30px rgba(0,0,0,.4); }
+  h1 { font-size:15px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:12px; margin:0 0 12px; }
+  .row { display:flex; justify-content:space-between; margin:4px 0; }
+  .row b { font-variant-numeric:tabular-nums; }
+  .extra { color:var(--accent); font-weight:600; }
+  button { width:100%; margin-top:10px; padding:9px; border:0; border-radius:8px;
+    background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  button.sec { background:#2a333d; color:var(--ink); }
+  .hint { color:var(--muted); font-size:11px; margin-top:10px; }
+  .leg { display:flex; align-items:center; gap:6px; margin:2px 0; font-size:12px; color:var(--muted);}
+  .swatch { width:18px; height:3px; border-radius:2px; display:inline-block; }
+  .disclaim { margin-top:12px; padding-top:10px; border-top:1px solid #2a333d;
+    color:#c9a227; font-size:11px; }
+  .credits { margin-top:10px; padding-top:9px; border-top:1px solid #2a333d;
+    color:var(--muted); font-size:10px; line-height:1.4; }
+  .credits a { color:var(--muted); text-decoration:underline; }
+  .toggle { display:flex; align-items:center; gap:7px; margin-top:10px;
+    font-size:12px; color:var(--ink); cursor:pointer; }
+  .field { margin-top:8px; }
+  .field label { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
+  .field input { width:100%; box-sizing:border-box; padding:8px 9px; border-radius:7px;
+    border:1px solid #2a333d; background:#0e1319; color:var(--ink); font-size:13px; }
+  .field input:focus { outline:none; border-color:var(--accent); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>ALPR-Avoidance Prototype</h1>
+  <p class="sub">United States · live OSM cameras · Valhalla routing</p>
+
+  <div class="leg"><span class="swatch" style="background:#888"></span> Baseline (fastest)</div>
+  <div class="leg"><span class="swatch" style="background:var(--accent)"></span> Camera-avoiding</div>
+  <div class="leg"><span style="color:#00b3ff">➤</span> Camera (arrow = facing) ·
+    <span style="color:#e6194B">➤</span> reads you · <span style="color:#2ecc71">➤</span> facing away</div>
+
+  <div class="field"><label for="startAddr">Start</label>
+    <input id="startAddr" placeholder="Start address or place"
+           value="Park Road Shopping Center, Charlotte, NC"></div>
+  <div class="field"><label for="endAddr">Destination</label>
+    <input id="endAddr" placeholder="Destination address or place"
+           value="Matthews, NC"></div>
+
+  <label class="toggle"><input type="checkbox" id="dir" checked>
+    Directional — only avoid cameras facing my travel</label>
+
+  <div id="stats" style="margin-top:10px"></div>
+
+  <button id="route">Route (avoid cameras)</button>
+  <button id="pick" class="sec">Or set points by clicking the map</button>
+  <div class="hint" id="hint">Cameras loaded from the BFF. Click “Route” to compare.</div>
+  <div class="disclaim">⚠ Shows only <b>known</b> mapped cameras. Coverage is
+    crowdsourced and incomplete — never treat a route as camera-free.</div>
+
+  <div class="credits">
+    Camera &amp; map data ©
+    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+    contributors, available under
+    <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a>.
+    Routing by <a href="https://github.com/valhalla/valhalla" target="_blank" rel="noopener">Valhalla</a> ·
+    geocoding by <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> ·
+    map by <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>.
+  </div>
+</div>
+
+<script>
+const BFF = "";  // same origin — app.py serves this page and the API together
+const map = L.map("map").setView([39.5, -98.35], 5);  // national view; zoom in for detail
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 19,
+    attribution: 'Map data &amp; cameras © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)'
+  }).addTo(map);
+
+let start = [-80.86, 35.16];   // [lon,lat] — geocoded from the address boxes on Route
+let end   = [-80.80, 35.14];
+let startLabel = "Start", endLabel = "Destination";
+let routeLayer = L.layerGroup().addTo(map);
+let camLayer   = L.layerGroup().addTo(map);
+let markerLayer = L.layerGroup().addTo(map);
+let picking = null; // 'start' | 'end' | null
+
+// Arrow points the way the camera faces (deg, 0=N). Dot if facing unknown.
+const camIcon = (facing, color = "#00b3ff") => {
+  const glyph = (facing == null)
+    ? `<div style="width:9px;height:9px;border-radius:50%;background:${color};
+         border:1.5px solid #fff"></div>`
+    : `<div style="transform:rotate(${facing - 90}deg);font-size:16px;line-height:16px;
+         color:${color};text-shadow:0 0 2px #000">➤</div>`;  // ➤ points E at 0deg
+  return L.divIcon({ className: "", iconSize: [16,16], iconAnchor: [8,8], html: glyph });
+};
+
+async function loadCameras() {
+  const b = map.getBounds();
+  if (b.getWest() === b.getEast() || b.getSouth() === b.getNorth()) return; // map not sized yet
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
+  const fc = await (await fetch(`${BFF}/cameras?bbox=${bbox}`)).json();
+  camLayer.clearLayers();
+  fc.features.forEach(f => {
+    const [lon,lat] = f.geometry.coordinates;
+    const dir = f.properties.direction;
+    L.marker([lat,lon], {icon: camIcon(dir)})
+      .bindTooltip(`ALPR camera${dir!=null?` · facing ${dir}°`:" · facing unknown"}`)
+      .addTo(camLayer);
+  });
+  document.getElementById("hint").textContent = fc.truncated
+    ? `${fc.total.toLocaleString()} cameras here — showing ${fc.features.length.toLocaleString()}. Zoom in for the rest.`
+    : `${fc.total.toLocaleString()} known cameras in view.`;
+}
+
+function drawMarkers() {
+  markerLayer.clearLayers();
+  L.marker([start[1],start[0]], {title:"Start"}).addTo(markerLayer).bindTooltip("Start: "+startLabel);
+  L.marker([end[1],end[0]], {title:"End"}).addTo(markerLayer).bindTooltip("Destination: "+endLabel);
+}
+
+async function geocode(q) {
+  const r = await fetch(`${BFF}/geocode?q=${encodeURIComponent(q)}`);
+  return r.ok ? r.json() : null;
+}
+
+async function doRoute() {
+  const hint = document.getElementById("hint");
+  const sAddr = document.getElementById("startAddr").value.trim();
+  const eAddr = document.getElementById("endAddr").value.trim();
+  if (sAddr && eAddr) {
+    hint.textContent = "Finding addresses…";
+    const [gs, ge] = [await geocode(sAddr), await geocode(eAddr)];
+    if (!gs) { hint.textContent = `Couldn't find start: “${sAddr}”`; return; }
+    if (!ge) { hint.textContent = `Couldn't find destination: “${eAddr}”`; return; }
+    start = [gs.lon, gs.lat];
+    end = [ge.lon, ge.lat];
+    startLabel = gs.label; endLabel = ge.label;
+    map.fitBounds([[gs.lat, gs.lon], [ge.lat, ge.lon]], { padding: [70, 70], maxZoom: 15 });
+  }
+  hint.textContent = "Routing…";
+  const directional = document.getElementById("dir").checked;
+  const res = await fetch(`${BFF}/route`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({from:start, to:end, avoid:true, directional})
+  });
+  const data = await res.json();
+  routeLayer.clearLayers();
+  data.features.forEach(f => {
+    const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
+    const avoided = f.properties.kind === "avoided";
+    L.polyline(latlngs, {
+      color: f.properties.color,
+      weight: avoided ? 5 : 4,
+      opacity: avoided ? 0.95 : 0.6,
+      dashArray: avoided ? null : "6 6"
+    }).addTo(routeLayer);
+  });
+  const s = data.stats;
+  // Re-draw on-route cameras coloured by whether they read this travel direction.
+  (s.capturing_cameras || []).forEach(c =>
+    L.marker([c.lat, c.lon], {icon: camIcon(c.direction, "#e6194B"), zIndexOffset:1000})
+      .bindTooltip(`Reads you · facing ${c.direction ?? "?"}° · you travel ${c.travel_heading}°`)
+      .addTo(routeLayer));
+  (s.passed_cameras || []).forEach(c =>
+    L.marker([c.lat, c.lon], {icon: camIcon(c.direction, "#2ecc71"), zIndexOffset:1000})
+      .bindTooltip(`Facing away · facing ${c.direction ?? "?"}° · you travel ${c.travel_heading}°`)
+      .addTo(routeLayer));
+  document.getElementById("stats").innerHTML = `
+    <div class="row"><span>Baseline</span><b>${s.baseline_km} km · ${s.baseline_min} min</b></div>
+    <div class="row"><span>Avoiding</span><b>${s.avoided_km} km · ${s.avoided_min} min</b></div>
+    <div class="row extra"><span>Detour cost</span><b>+${s.extra_km} km · +${s.extra_min} min</b></div>
+    <div class="row"><span>On-route cameras</span><b>${s.cameras_captured} read · ${s.cameras_passed} facing away</b></div>`;
+  document.getElementById("hint").textContent = directional
+    ? "Red arrows read you (avoided) · green face away (kept)."
+    : "Directional off — every on-route camera avoided.";
+  drawMarkers();
+}
+
+map.on("click", e => {
+  if (!picking) return;
+  const pt = [e.latlng.lng, e.latlng.lat];
+  const fmt = p => `${p[1].toFixed(4)}, ${p[0].toFixed(4)}`;
+  if (picking === "start") { start = pt; startLabel = "Pinned " + fmt(pt); picking = "end";
+    document.getElementById("hint").textContent = "Now click the destination."; }
+  else {
+    end = pt; endLabel = "Pinned " + fmt(pt); picking = null;
+    // Clear the address boxes so Route uses these pinned points, not geocoding.
+    document.getElementById("startAddr").value = "";
+    document.getElementById("endAddr").value = "";
+    document.getElementById("hint").textContent = "Points pinned. Click Route.";
+  }
+  drawMarkers();
+});
+
+document.getElementById("route").onclick = doRoute;
+document.getElementById("pick").onclick = () => {
+  picking = "start";
+  document.getElementById("hint").textContent = "Click the start point on the map.";
+};
+map.on("moveend", loadCameras);
+
+drawMarkers();
+map.whenReady(() => { map.invalidateSize(); loadCameras(); });
+</script>
+</body>
+</html>

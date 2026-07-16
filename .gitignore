@@ -1,0 +1,13 @@
+# Large source data — regenerate with: python3 fetch_cameras.py <region>
+# (the compact data/cameras.bin the app loads at runtime IS committed)
+data/cameras.geojson
+
+# Build artifact — regenerate with: python3 build_standalone.py
+dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
