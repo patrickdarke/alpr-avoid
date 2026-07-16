@@ -9,6 +9,9 @@ cameras pulled from Overpass, real routes from a public Valhalla server that
 bend around cameras on the path. It's a demo harness — it draws and compares
 routes on a map rather than giving live turn-by-turn guidance.
 
+> 👋 **Not a programmer?** Start with the **[User Guide](USER_GUIDE.md)** — a
+> step-by-step, no-jargon walkthrough for getting this running and using the map.
+
 ## What's here
 
 Four files. No dependencies — system Python 3 + `curl` only.
